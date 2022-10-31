@@ -5,29 +5,28 @@ using System.Collections;
 using System.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.Networking;
+using Spotify.Auth;
 
 namespace Spotify.WebAPI
 {
-	public class WebAPIPlayer : PlayerBackend
+	public sealed class WebAPIPlayer : PlayerBackend
 	{
-        private const string _rootEndpoint = "https://api.spotify.com/v1";
-        private string _accessToken;
+        private OAuth.TokenHandler _tokenHandler;
 
-		public WebAPIPlayer(string accessToken) : base()
-		{
-            _accessToken = accessToken;
-		}
+        public WebAPIPlayer(OAuth.TokenHandler tokenHandler) : base()
+        {
+            _tokenHandler = tokenHandler;
+        }
 
         public override ICallResult Init()
         {
-            // TODO fix this
             var initCall = new CallResult();
-            var callResult = new CallResult<GetPlaybackStateResponse>(cr => SendRequest(
+
+            MonoBehaviourHelper.RunCoroutine(SendRequest<GetPlaybackStateResponse>(
                 UnityWebRequest.kHttpVerbGET,
                 "/me/player",
-                cr,
-                (state) => {
-
+                (state) =>
+                {
                     IsPaused = !state.is_playing;
 
                     var track = state.item;
@@ -35,7 +34,7 @@ namespace Spotify.WebAPI
                     var artist = track.artists.First();
 
                     // TODO add cache manager
-                    CoroutineHelper.Run(GetAlbumImage(album.images.First().url, (texture) =>
+                    MonoBehaviourHelper.RunCoroutine(GetAlbumImage(album.images.First().url, (texture) =>
                     {
                         TrackImage.Reinitialize(texture.width, texture.height, texture.format, false);
                         TrackImage.SetPixels32(texture.GetPixels32());
@@ -72,7 +71,13 @@ namespace Spotify.WebAPI
                     StateUpdated(progress);
 
                     initCall.SetResult(CallResult.Empty);
-                }));
+                },
+                (error) =>
+                {
+                    initCall.SetError(error);
+                }
+                ));
+
             return initCall;
         }
 
@@ -82,7 +87,7 @@ namespace Spotify.WebAPI
                 UnityWebRequest.kHttpVerbPUT,
                 "/me/player/pause",
                 cr,
-                (e) => {
+                () => {
                     IsPaused = true;
                     StateUpdated();
                     Init();
@@ -105,7 +110,7 @@ namespace Spotify.WebAPI
                 UnityWebRequest.kHttpVerbPUT,
                 "/me/player/play",
                 cr,
-                (e) => {
+                () => {
                     IsPaused = false;
                     StateUpdated();
                     Init();
@@ -138,7 +143,7 @@ namespace Spotify.WebAPI
                 UnityWebRequest.kHttpVerbPOST,
                 "/me/player/next",
                 cr,
-                (e) => {
+                () => {
                     Init();
                 }));
         }
@@ -149,7 +154,7 @@ namespace Spotify.WebAPI
                 UnityWebRequest.kHttpVerbPOST,
                 "/me/player/previous",
                 cr,
-                (e) => {
+                () => {
                     Init();
                 }));
         }
@@ -159,12 +164,24 @@ namespace Spotify.WebAPI
             Init();
         }
 
-        private IEnumerator SendRequest<T>(string method, string path, CallResult<T> callResult = null, Action<T> onFinish = null) where T : class
+        private IEnumerator SendRequest<T>(string method, string path, CallResult<T> callResult, Action onFinish = null) where T : class
         {
-            if (_accessToken != null)
+            yield return MonoBehaviourHelper.RunCoroutine(SendRequest<T>(method, path,
+                (result) => { callResult.SetResult(result); onFinish?.Invoke(); },
+                (error) => callResult.SetError(error)));
+        }
+
+        private IEnumerator SendRequest<T>(string method, string path, Action<T> onResult = null, Action<Exception> onError = null) where T : class
+        {
+            if (_tokenHandler != null)
             {
-                var request = new UnityWebRequest(_rootEndpoint + path, method, new DownloadHandlerBuffer(), null);
-                request.SetRequestHeader("Authorization", "Bearer " + _accessToken);
+                var tokenResult = _tokenHandler.GetAccessTokenSafely();
+                yield return MonoBehaviourHelper.RunCoroutine(tokenResult.Yield());
+
+                //while (OAuth.TokenRefreshInProgress) yield return null;
+
+                var request = new UnityWebRequest(Config.Instance.API_ENDPOINT + path, method, new DownloadHandlerBuffer(), null);
+                request.SetRequestHeader("Authorization", "Bearer " + tokenResult.GetResult());
                 request.SetRequestHeader("Content-Type", "application/json");
 
                 yield return request.SendWebRequest();
@@ -177,21 +194,19 @@ namespace Spotify.WebAPI
 
                         if (typeof(Empty) is T)
                         {
-                            onFinish?.Invoke(CallResult.Empty as T);
-                            callResult?.SetResult(CallResult.Empty as T);
+                            onResult?.Invoke(CallResult.Empty as T);
                         }
                         else
                         {
                             var response = JsonConvert.DeserializeObject<T>(request.downloadHandler.text);
-                            onFinish?.Invoke(response);
-                            callResult?.SetResult(response);
+                            onResult?.Invoke(response);
                         }
                     }
                     catch (Exception e)
                     {
                         Debug.LogError(e.Message);
 
-                        callResult?.SetError(e);
+                        onError?.Invoke(e);
                     }
                 }
                 else
@@ -199,18 +214,17 @@ namespace Spotify.WebAPI
                     Debug.LogError(request.url);
                     Debug.LogError(request.error);
 
-                    callResult?.SetError(new Exception(request.error));
+                    onError?.Invoke(new Exception(request.error));
                 }
             }
             else
             {
-                callResult?.SetError(new Exception("No Access Token"));
+                onError?.Invoke(new Exception("No Access Token"));
             }
         }
 
         private IEnumerator GetAlbumImage(string url, Action<Texture2D> onFinish)
         {
-            //Debug.Log(url);
             var downloadHandler = new DownloadHandlerTexture();
             var request = new UnityWebRequest(url, UnityWebRequest.kHttpVerbGET, downloadHandler, null);
 

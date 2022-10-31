@@ -1,0 +1,40 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 56998647727e84b1f9a01f54b623cf75, type: 3}
+  m_Name: SpotifyConfig
+  m_EditorClassIdentifier: 
+  CLIENT_ID: a1e7f821360540b6ac02c8c6366229ca
+  DESKTOP_AUTH_REDIRECT_URI: http://localhost:51772/callback
+  ANDROID_AUTH_REDIRECT_URI: http://ca.darrylday.spotifyunity/callback
+  SCOPES:
+  - ugc-image-upload
+  - user-read-playback-state
+  - user-modify-playback-state
+  - user-read-currently-playing
+  - app-remote-control
+  - streaming
+  - playlist-read-private
+  - playlist-read-collaborative
+  - playlist-modify-private
+  - playlist-modify-public
+  - user-follow-modify
+  - user-follow-read
+  - user-read-playback-position
+  - user-top-read
+  - user-read-recently-played
+  - user-library-modify
+  - user-library-read
+  - user-read-email
+  - user-read-private
+  TOKEN_ENDPOINT: https://accounts.spotify.com/api/token
+  AUTH_ENDPOINT: https://accounts.spotify.com/authorize
+  API_ENDPOINT: https://api.spotify.com/v1

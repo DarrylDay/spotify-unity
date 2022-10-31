@@ -1,52 +1,38 @@
 ﻿using System;
 using UnityEngine;
+using Spotify.Auth;
 
 namespace Spotify.Android
 {
-    public class AndroidPlayer : PlayerBackend
+    public sealed class AndroidPlayer : PlayerBackend
     {
         public override Vector3 TrackImageScaleAdjustment => new Vector3(1f, -1f, 1f);
 
-        private const string CLIENT_ID = "a1e7f821360540b6ac02c8c6366229ca";
-        private const string REDIRECT_URI = "http://ca.darrylday.spotifytest/callback";
-
-        private AndroidJavaObject _unityPlayerActivity;
         private AndroidJavaObject _spotifyAppRemote;
-        private string _accessToken;
 
         public AndroidPlayer() : base()
         {
-            using (AndroidJavaClass unityPlayer = new AndroidJavaClass("com.unity3d.player.UnityPlayer"))
-            {
-                _unityPlayerActivity = unityPlayer.GetStatic<AndroidJavaObject>("currentActivity");
-            }
         }
 
         public override ICallResult Init()
         {
-            throw new NotImplementedException();
+            return ConnectToRemote();
         }
 
         public override ICallResult Pause()
         {
             using (var playerAPI = _spotifyAppRemote.Call<AndroidJavaObject>("getPlayerApi"))
             {
-                playerAPI.Call<AndroidJavaObject>("pause").Dispose();
+                return new NativeCallResult(playerAPI.Call<AndroidJavaObject>("pause"));
             }
-
-            throw new NotImplementedException();
         }
 
         public override ICallResult Play(string uri)
         {
-            // TODO create CallResult that matches Android CallResult
-
             using (var playerAPI = _spotifyAppRemote.Call<AndroidJavaObject>("getPlayerApi"))
             {
-                playerAPI.Call<AndroidJavaObject>("play", uri).Dispose();
+                return new NativeCallResult(playerAPI.Call<AndroidJavaObject>("play", uri));
             }
-
-            throw new NotImplementedException();
         }
 
         public override ICallResult Queue(string uri)
@@ -58,10 +44,8 @@ namespace Spotify.Android
         {
             using (var playerAPI = _spotifyAppRemote.Call<AndroidJavaObject>("getPlayerApi"))
             {
-                playerAPI.Call<AndroidJavaObject>("resume").Dispose();
+                return new NativeCallResult(playerAPI.Call<AndroidJavaObject>("resume"));
             }
-
-            throw new NotImplementedException();
         }
 
         public override ICallResult SeekTo(long positionMs)
@@ -88,60 +72,40 @@ namespace Spotify.Android
         {
             using (var playerAPI = _spotifyAppRemote.Call<AndroidJavaObject>("getPlayerApi"))
             {
-                playerAPI.Call<AndroidJavaObject>("skipNext").Dispose();
+                return new NativeCallResult(playerAPI.Call<AndroidJavaObject>("skipNext"));
             }
-
-            throw new NotImplementedException();
         }
 
         public override ICallResult SkipPrevious()
         {
             using (var playerAPI = _spotifyAppRemote.Call<AndroidJavaObject>("getPlayerApi"))
             {
-                playerAPI.Call<AndroidJavaObject>("skipPrevious").Dispose();
+                return new NativeCallResult(playerAPI.Call<AndroidJavaObject>("skipPrevious"));
             }
-
-            throw new NotImplementedException();
         }
 
         public override void Dispose()
         {
             base.Dispose();
-            _unityPlayerActivity?.Dispose();
+
             DisconnectFromRemote();
         }
 
-        private void GetAuthToken(Action<string> callback)
+        private ICallResult ConnectToRemote()
         {
-            using (AndroidJavaClass spotifyLoginActivityClass = new AndroidJavaClass(Application.identifier + ".SpotifyLoginActivity"))
-            {
-                spotifyLoginActivityClass.CallStatic("SetTokenCallback", new TokenCallback(token =>
-                {
-                    Debug.Log(token);
-                    callback?.Invoke(token);
-                }));
+            var callResult = new CallResult();
 
-                using (var intent = new AndroidJavaObject("android.content.Intent"))
-                {
-                    using (var spotifyLoginIntent = intent.Call<AndroidJavaObject>("setClassName", _unityPlayerActivity, Application.identifier + ".SpotifyLoginActivity"))
-                    {
-                        _unityPlayerActivity.Call("startActivity", spotifyLoginIntent);
-                    }
-                }
-            }
-        }
-
-        private void ConnectToRemote()
-        {
-            using (var builder = new AndroidJavaObject("com.spotify.android.appremote.api.ConnectionParams$Builder", CLIENT_ID))
+            using (AndroidJavaClass unityPlayer = new AndroidJavaClass("com.unity3d.player.UnityPlayer"))
+            using (AndroidJavaObject unityPlayerActivity = unityPlayer.GetStatic<AndroidJavaObject>("currentActivity"))
+            using (var builder = new AndroidJavaObject("com.spotify.android.appremote.api.ConnectionParams$Builder", Config.Instance.CLIENT_ID))
             {
-                builder.Call<AndroidJavaObject>("setRedirectUri", REDIRECT_URI).Dispose();
+                builder.Call<AndroidJavaObject>("setRedirectUri", Config.Instance.ANDROID_AUTH_REDIRECT_URI).Dispose();
                 builder.Call<AndroidJavaObject>("showAuthView", false).Dispose();
                 using (var connectionParams = builder.Call<AndroidJavaObject>("build"))
                 {
                     using (var spotifyAppRemoteClass = new AndroidJavaClass("com.spotify.android.appremote.api.SpotifyAppRemote"))
                     {
-                        spotifyAppRemoteClass.CallStatic("connect", _unityPlayerActivity, connectionParams, new ConnectionListner(
+                        spotifyAppRemoteClass.CallStatic("connect", unityPlayerActivity, connectionParams, new ConnectionListner(
                             (spotifyAppRemote) =>
                             {
                                 _spotifyAppRemote = spotifyAppRemote;
@@ -153,31 +117,33 @@ namespace Spotify.Android
                                 {
                                     subscription.Call<AndroidJavaObject>("setEventCallback", new EventCallback(OnPlayerStateChange)).Dispose();
                                 }
+
+                                callResult.SetFinished();
                             },
                             (error) =>
                             {
                                 Debug.LogError("Connection Failed: " + error);
+
+                                callResult.SetError(new Exception(error));
                             }
                         ));
                     }
                 }
             }
+
+            return callResult;
         }
 
-        public void DisconnectFromRemote()
+        private void DisconnectFromRemote()
         {
             if (_spotifyAppRemote != null)
             {
-                Debug.Log("Attempt Disconnect");
-
                 using (var spotifyAppRemoteClass = new AndroidJavaClass("com.spotify.android.appremote.api.SpotifyAppRemote"))
                 {
                     spotifyAppRemoteClass.CallStatic("disconnect", _spotifyAppRemote);
                 }
 
                 _spotifyAppRemote.Dispose();
-
-                Debug.Log("Disconnected");
             }
         }
 
@@ -193,28 +159,31 @@ namespace Spotify.Android
                 var artistName = artist.Get<string>("name");
                 var playbackPosition = playerState.Get<long>("playbackPosition");
                 var songLength = track.Get<long>("duration");
-                //_isPaused = playerState.Get<bool>("isPaused");
+                IsPaused = playerState.Get<bool>("isPaused");
 
-                //UpdatePlayButton();
+                if (CurrentTrack == null || trackUri != CurrentTrack.Uri)
+                {
+                    LoadTrackImage(track);
+                }
 
-                //_songNameText.text = trackName;
-                //_artistText.text = artistName;
+                CurrentTrack = new Track()
+                {
+                    Name = trackName,
+                    Album = new Album()
+                    {
+                        Name = "",
+                        Uri = ""
+                    },
+                    MainArtist = new Artist()
+                    {
+                        Name = artistName,
+                        Uri = ""
+                    },
+                    Duration = songLength,
+                    Uri = trackUri
+                };
 
-                //_trackLength = songLength / 1000f;
-                //var t = TimeSpan.FromMilliseconds(songLength);
-                //_songLengthText.text = string.Format("{0:D2}:{1:D2}", t.Minutes, t.Seconds);
-
-                //_playbackProgress = playbackPosition / 1000f;
-                //_playbackStartTime = Time.realtimeSinceStartup;
-
-                //UpdateTimeline(true);
-
-                //if (trackUri != _trackUri)
-                //{
-                //    LoadTrackImage(track);
-                //}
-
-                //_trackUri = trackUri;
+                StateUpdated(playbackPosition);
             }
         }
 
@@ -224,7 +193,7 @@ namespace Spotify.Android
             using (var imagesAPI = _spotifyAppRemote.Call<AndroidJavaObject>("getImagesApi"))
             using (var imageBitmapCallResult = imagesAPI.Call<AndroidJavaObject>("getImage", imageUri))
             {
-                imageBitmapCallResult.Call<AndroidJavaObject>("setResultCallback", new ResultCallback((imageBitmap) =>
+                imageBitmapCallResult.Call<AndroidJavaObject>("setResultCallback", new ResultCallback<AndroidJavaObject>((imageBitmap) =>
                 {
                     using (var configClass = new AndroidJavaClass("android.graphics.Bitmap$Config"))
                     using (var ARGB_8888 = configClass.GetStatic<AndroidJavaObject>("ARGB_8888"))
@@ -253,6 +222,8 @@ namespace Spotify.Android
                             }
                         }
                     }
+
+                    imageBitmap.Dispose();
                 }));
             }
         }

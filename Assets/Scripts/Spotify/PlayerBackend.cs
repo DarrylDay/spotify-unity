@@ -4,6 +4,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using UnityEngine;
+using Spotify.Auth;
 
 namespace Spotify
 {
@@ -49,7 +50,7 @@ namespace Spotify
 
         public PlayerBackend()
         {
-            _timelineCoroutine = CoroutineHelper.Run(TimelineUpdateLoop());
+            _timelineCoroutine = MonoBehaviourHelper.RunCoroutine(TimelineUpdateLoop());
             TrackImage = new Texture2D(2, 2);
         }
 
@@ -69,7 +70,7 @@ namespace Spotify
 
         public virtual void Dispose()
         {
-            CoroutineHelper.Stop(_timelineCoroutine);
+            MonoBehaviourHelper.AbortCoroutine(_timelineCoroutine);
             Texture2D.Destroy(TrackImage);
         }
 

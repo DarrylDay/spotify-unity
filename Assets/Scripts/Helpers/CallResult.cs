@@ -1,134 +1,165 @@
 ﻿using System;
 using System.Collections;
+using System.Threading;
 using System.Threading.Tasks;
 using UnityEngine;
 
-public class Empty { }
-
-public enum ResultState
+public class CallResult<T> : ICallResult<T>, IDisposable
 {
-    Pending,
-    Canceled,
-    Error,
-    Finished
-}
-
-public interface ICallResult<T>
-{
-    ResultState GetState();
-    T GetResult();
-
-    ICallResult<T> OnResult(Action<T> callback);
-    ICallResult<T> OnFinish(Action callback);
-    ICallResult<T> OnError(Action<Exception> callback);
-
-    void Cancel();
-
-    Task<T> Await();
-    Coroutine Yield();
-}
-
-public interface ICallResult : ICallResult<Empty>
-{
-    new ICallResult OnFinish(Action callback);
-    new ICallResult OnError(Action<Exception> callback);
-}
-
-public class CallResult<T> : ICallResult<T>
-{
-    protected ResultState _state;
-    protected T _result;
+    public ResultState State { get; private set; } = ResultState.Pending;
 
     protected Action<T> _onResult;
     protected Action<Exception> _onError;
 
-    protected Coroutine _coroutine;
-    protected Task _task;
-
+    protected T _result;
     protected Exception _error;
 
-    public CallResult() {}
+    protected TaskCompletionSource<T> _completionSource = new TaskCompletionSource<T>();
+    protected Coroutine _callCoroutine;
+    protected CancellationTokenSource _callCTS;
+    protected Action _cancelAction;
+
+    public CallResult() { }
 
     public CallResult(Func<CallResult<T>, IEnumerator> getEnumerator)
     {
-        _coroutine = CoroutineHelper.Run(getEnumerator.Invoke(this));
+        _callCoroutine = MonoBehaviourHelper.RunCoroutine(getEnumerator.Invoke(this));
     }
 
-    public CallResult(IEnumerator enumerator)
+    public CallResult(Func<CancellationTokenSource, Task<T>> runTask)
     {
-        _coroutine = CoroutineHelper.Run(enumerator);
+        _callCTS = new CancellationTokenSource();
+        MonoBehaviourHelper.OnApplicationQuitEvent += Dispose;
+        RunAsyncTask(runTask(_callCTS));
     }
 
-    public CallResult(Coroutine coroutine)
+    public CallResult(T result)
     {
-        _coroutine = coroutine;
-    }
-
-    public CallResult(Task task)
-    {
-        throw new NotImplementedException();
+        _result = result;
+        State = ResultState.Finished;
     }
 
     public ICallResult<T> OnResult(Action<T> callback)
     {
         _onResult = callback;
+        if (State == ResultState.Finished) _onResult?.Invoke(_result);
         return this;
     }
 
     public ICallResult<T> OnFinish(Action callback)
     {
         _onResult = (t) => callback?.Invoke();
+        if (State == ResultState.Finished) _onResult?.Invoke(_result);
         return this;
     }
 
     public ICallResult<T> OnError(Action<Exception> callback)
     {
         _onError = callback;
+        if (State == ResultState.Error) _onError?.Invoke(_error);
         return this;
     }
 
-    public void Cancel()
+    public bool TryCancel()
     {
-        throw new NotImplementedException();
+        if (State == ResultState.Canceled) return true;
+
+        if (_callCoroutine != null)
+        {
+            MonoBehaviourHelper.AbortCoroutine(_callCoroutine);
+            State = ResultState.Canceled;
+        }
+        else if (_callCTS != null)
+        {
+            _callCTS?.Cancel();
+            _callCTS?.Dispose();
+            State = ResultState.Canceled;
+        }
+        else if (_cancelAction != null)
+        {
+            _cancelAction?.Invoke();
+            State = ResultState.Canceled;
+        }
+
+        return State == ResultState.Canceled;
     }
 
     public bool IsCanceled()
     {
-        throw new NotImplementedException();
+        return State == ResultState.Canceled;
     }
 
-    public Task<T> Await()
+    public bool IsCancelable()
     {
-        throw new NotImplementedException();
+        return _callCoroutine != null || _callCTS != null || _cancelAction != null;
     }
 
-    public Coroutine Yield()
+    // TODO Add timeout option
+
+    public async Task Await()
     {
-        if (_coroutine != null)
+        if (State == ResultState.Pending)
         {
-            return _coroutine;
+            await _completionSource.Task;
         }
-        else
+
+        return;
+    }
+
+    public async Task<T> AwaitResult()
+    {
+        if (State == ResultState.Finished)
         {
-            throw new NotImplementedException();
+            return _result;
         }
+
+        return await _completionSource.Task;
+    }
+
+    public IEnumerator Yield()
+    {
+        if (State == ResultState.Finished)
+        {
+            yield break;
+        }
+
+        while (State == ResultState.Pending)
+            yield return null;
     }
 
     public void SetResult(T result)
     {
-        _onResult?.Invoke(result);
+        if (State != ResultState.Pending)
+        {
+            throw new Exception("Cannot Set Result on Non-Pending State");
+        }
+        else
+        {
+            _result = result;
+            State = ResultState.Finished;
+            _onResult?.Invoke(result);
+        }
     }
 
     public void SetError(Exception e)
     {
-        _onError?.Invoke(e);
+        if (State != ResultState.Pending)
+        {
+            throw new Exception("Cannot Set Error on Non-Pending State");
+        }
+        else
+        {
+            _error = e;
+            State = ResultState.Error;
+            _onError?.Invoke(e);
+        }
     }
 
-    public ResultState GetState() => _state;
+    public ResultState GetState() => State;
 
     public T GetResult()
     {
-        switch (_state)
+        switch (State)
         {
             case ResultState.Pending:
                 throw new Exception("Result Pending");
@@ -143,6 +174,25 @@ public class CallResult<T> : ICallResult<T>
                 throw new Exception("Unknown Error");
         }
     }
+
+    public void Dispose()
+    {
+        if (State == ResultState.Pending) TryCancel();
+    }
+
+    private async Task RunAsyncTask(Task<T> task)
+    {
+        try
+        {
+            SetResult(await task);
+        }
+        catch (Exception e)
+        {
+            SetError(e);
+        }
+
+        MonoBehaviourHelper.OnApplicationQuitEvent -= Dispose;
+    }
 }
 
 public class CallResult : CallResult<Empty>, ICallResult
@@ -153,18 +203,47 @@ public class CallResult : CallResult<Empty>, ICallResult
 
     public CallResult(Func<CallResult, IEnumerator> getEnumerator)
     {
-        _coroutine = CoroutineHelper.Run(getEnumerator.Invoke(this));
+        _callCoroutine = MonoBehaviourHelper.RunCoroutine(getEnumerator.Invoke(this));
+    }
+
+    public CallResult(Func<CancellationTokenSource, Task> runTask)
+    {
+        _callCTS = new CancellationTokenSource();
+        MonoBehaviourHelper.OnApplicationQuitEvent += Dispose;
+        RunAsyncTask(runTask(_callCTS));
+    }
+
+    public void SetFinished()
+    {
+        SetResult(Empty);
     }
 
     public new ICallResult OnFinish(Action callback)
     {
         _onResult = (t) => callback?.Invoke();
+        if (State == ResultState.Finished) _onResult?.Invoke(_result);
         return this;
     }
 
     public new ICallResult OnError(Action<Exception> callback)
     {
         _onError = callback;
+        if (State == ResultState.Error) _onError?.Invoke(_error);
         return this;
+    }
+
+    private async Task RunAsyncTask(Task task)
+    {
+        try
+        {
+            await task;
+            SetResult(CallResult.Empty);
+        }
+        catch (Exception e)
+        {
+            SetError(e);
+        }
+
+        MonoBehaviourHelper.OnApplicationQuitEvent -= Dispose;
     }
 }
