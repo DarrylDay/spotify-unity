@@ -59,3 +59,6 @@ sysinfo.txt
 crashlytics-build.properties
 
 /Config
+/Assets/Resources/SpotifyConfig.asset
+/Assets/Resources/SpotifyConfig.asset.meta
+.idea

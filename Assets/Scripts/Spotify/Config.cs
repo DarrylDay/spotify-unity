@@ -72,8 +72,19 @@ namespace Spotify
         public string AUTH_ENDPOINT = "https://accounts.spotify.com/authorize";
         public string API_ENDPOINT = "https://api.spotify.com/v1";
 
-        public static PlayerPrefString CLIENT_SECRET_PP = new PlayerPrefString("SPOTIFY_CLIENT_SECRET");
-        public string CLIENT_SECRET => CLIENT_SECRET_PP.Read();
+        public string AUTH_REDIRECT_URI =>
+#if UNITY_ANDROID && !UNITY_EDITOR
+            ANDROID_AUTH_REDIRECT_URI;
+#else
+            DESKTOP_AUTH_REDIRECT_URI;
+#endif
+        
+        // TEMP
+        public string CLIENT_SECRET;
+        
+        // TODO: Change to this when no longer needing to put client secret in android build
+        // public static PlayerPrefString CLIENT_SECRET_PP = new PlayerPrefString("SPOTIFY_CLIENT_SECRET");
+        // public string CLIENT_SECRET => CLIENT_SECRET_PP.Read();
 
 #if UNITY_EDITOR
         public void Save()

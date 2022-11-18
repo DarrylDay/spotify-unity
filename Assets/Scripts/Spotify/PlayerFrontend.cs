@@ -42,7 +42,11 @@ namespace Spotify
             Backend.OnStateChange += OnPlayerStateChanged;
             Backend.OnTimelineTick += OnTimelineTick;
 
-            if (Backend.CurrentTrack != null)
+            if (Backend.NoPlayer)
+            {
+                OnPlayerStateChanged(Backend);
+            }
+            else if (Backend.CurrentTrack != null)
             {
                 OnPlayerStateChanged(Backend);
                 OnTimelineTick(Backend.PlaybackPosition, Backend.CurrentTrack.Duration);
@@ -78,7 +82,15 @@ namespace Spotify
 
         private void OnPlayerStateChanged(PlayerBackend backend)
         {
-            if (_currentTrack == null || _currentTrack.Uri != backend.CurrentTrack.Uri)
+            if (backend.NoPlayer)
+            {
+                _songNameText.text = string.Empty;
+                _artistText.text = string.Empty;
+                _currentTimeText.text = "00:00";
+                _songLengthText.text = "00:00";
+                _timelineSlider.value = 0;
+            }
+            else if (_currentTrack == null || _currentTrack.Uri != backend.CurrentTrack.Uri)
             {
                 _currentTrack = backend.CurrentTrack;
 
@@ -89,6 +101,10 @@ namespace Spotify
                 _songLengthText.text = string.Format("{0:D2}:{1:D2}", t.Minutes, t.Seconds);
             }
 
+            _prevButton.interactable = !backend.NoPlayer;
+            _nextButton.interactable = !backend.NoPlayer;
+            _playPauseButton.interactable = !backend.NoPlayer;
+
             UpdatePlayPauseButton();
         }
 
@@ -96,7 +112,7 @@ namespace Spotify
         {
             var t = TimeSpan.FromMilliseconds(pos);
             _currentTimeText.text = string.Format("{0:D2}:{1:D2}", t.Minutes, t.Seconds);
-            _timelineSlider.value = (float)pos / dur;
+            _timelineSlider.value = dur > 0 ? (float)pos / dur : 0;
         }
 
         private void UpdatePlayPauseButton()

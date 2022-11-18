@@ -27,49 +27,51 @@ namespace Spotify.WebAPI
                 "/me/player",
                 (state) =>
                 {
-                    IsPaused = !state.is_playing;
-
-                    var track = state.item;
-                    var album = track.album;
-                    var artist = track.artists.First();
-
-                    // TODO add cache manager
-                    MonoBehaviourHelper.RunCoroutine(GetAlbumImage(album.images.First().url, (texture) =>
+                    
+                    if (state == null)
                     {
-                        TrackImage.Reinitialize(texture.width, texture.height, texture.format, false);
-                        TrackImage.SetPixels32(texture.GetPixels32());
-                        TrackImage.Apply();
-                        //Texture2D.Destroy(texture);
-                        // TODO figure out why this crashes
-                    }));
-
-                    CurrentTrack = new Track()
-                    {
-                        Name = track.name,
-                        Album = new Album()
-                        {
-                            Name = album.name,
-                            Uri = album.uri
-                        },
-                        MainArtist = new Artist()
-                        {
-                            Name = artist.name,
-                            Uri = artist.uri
-                        },
-                        Duration = track.duration_ms,
-                        Uri = track.uri
-                    };
-
-                    long progress = state.progress_ms;
-
-                    if (!IsPaused)
-                    {
-                        var delta = (DateTimeOffset.Now.ToUnixTimeMilliseconds() - state.timestamp);
-                        progress += delta;
+                        NoPlayer = true;
+                        IsPaused = true;
                     }
+                    else
+                    {
+                        NoPlayer = false;
+                        IsPaused = !state.is_playing;
 
-                    StateUpdated(progress);
+                        var track = state.item;
+                        var album = track.album;
+                        var artist = track.artists.First();
 
+                        // TODO add cache manager
+                        MonoBehaviourHelper.RunCoroutine(GetAlbumImage(album.images.First().url, (texture) =>
+                        {
+                            TrackImage.Reinitialize(texture.width, texture.height, texture.format, false);
+                            TrackImage.SetPixels32(texture.GetPixels32());
+                            TrackImage.Apply();
+                            //Texture2D.Destroy(texture);
+                            // TODO figure out why this crashes
+                        }));
+
+                        CurrentTrack = new Track()
+                        {
+                            Name = track.name,
+                            Album = new Album()
+                            {
+                                Name = album.name,
+                                Uri = album.uri
+                            },
+                            MainArtist = new Artist()
+                            {
+                                Name = artist.name,
+                                Uri = artist.uri
+                            },
+                            Duration = track.duration_ms,
+                            Uri = track.uri
+                        };
+
+                        StateUpdated(state.progress_ms);
+                    }
+                    
                     initCall.SetResult(CallResult.Empty);
                 },
                 (error) =>
@@ -175,10 +177,10 @@ namespace Spotify.WebAPI
         {
             if (_tokenHandler != null)
             {
+                Debug.Log(path);
+                
                 var tokenResult = _tokenHandler.GetAccessTokenSafely();
                 yield return MonoBehaviourHelper.RunCoroutine(tokenResult.Yield());
-
-                //while (OAuth.TokenRefreshInProgress) yield return null;
 
                 var request = new UnityWebRequest(Config.Instance.API_ENDPOINT + path, method, new DownloadHandlerBuffer(), null);
                 request.SetRequestHeader("Authorization", "Bearer " + tokenResult.GetResult());

@@ -1,4 +1,6 @@
-﻿using System;
+﻿#if UNITY_ANDROID
+
+using System;
 using UnityEngine;
 using Spotify.Auth;
 
@@ -19,34 +21,16 @@ namespace Spotify.Android
             return ConnectToRemote();
         }
 
-        public override ICallResult Pause()
-        {
-            using (var playerAPI = _spotifyAppRemote.Call<AndroidJavaObject>("getPlayerApi"))
-            {
-                return new NativeCallResult(playerAPI.Call<AndroidJavaObject>("pause"));
-            }
-        }
+        public override ICallResult Pause() => CallPlayerAPI("pause");
 
-        public override ICallResult Play(string uri)
-        {
-            using (var playerAPI = _spotifyAppRemote.Call<AndroidJavaObject>("getPlayerApi"))
-            {
-                return new NativeCallResult(playerAPI.Call<AndroidJavaObject>("play", uri));
-            }
-        }
+        public override ICallResult Play(string uri) => CallPlayerAPI("play", uri);
 
         public override ICallResult Queue(string uri)
         {
             throw new NotImplementedException();
         }
 
-        public override ICallResult Resume()
-        {
-            using (var playerAPI = _spotifyAppRemote.Call<AndroidJavaObject>("getPlayerApi"))
-            {
-                return new NativeCallResult(playerAPI.Call<AndroidJavaObject>("resume"));
-            }
-        }
+        public override ICallResult Resume() => CallPlayerAPI("resume");
 
         public override ICallResult SeekTo(long positionMs)
         {
@@ -68,27 +52,31 @@ namespace Spotify.Android
             throw new NotImplementedException();
         }
 
-        public override ICallResult SkipNext()
-        {
-            using (var playerAPI = _spotifyAppRemote.Call<AndroidJavaObject>("getPlayerApi"))
-            {
-                return new NativeCallResult(playerAPI.Call<AndroidJavaObject>("skipNext"));
-            }
-        }
+        public override ICallResult SkipNext() => CallPlayerAPI("skipNext");
 
-        public override ICallResult SkipPrevious()
-        {
-            using (var playerAPI = _spotifyAppRemote.Call<AndroidJavaObject>("getPlayerApi"))
-            {
-                return new NativeCallResult(playerAPI.Call<AndroidJavaObject>("skipPrevious"));
-            }
-        }
+        public override ICallResult SkipPrevious() => CallPlayerAPI("skipPrevious");
 
         public override void Dispose()
         {
             base.Dispose();
 
             DisconnectFromRemote();
+        }
+
+        private ICallResult CallPlayerAPI(string methodName)
+        {
+            using (var playerAPI = _spotifyAppRemote.Call<AndroidJavaObject>("getPlayerApi"))
+            {
+                return new NativeCallResult(playerAPI.Call<AndroidJavaObject>(methodName));
+            }
+        }
+        
+        private ICallResult CallPlayerAPI<T>(string methodName, T data)
+        {
+            using (var playerAPI = _spotifyAppRemote.Call<AndroidJavaObject>("getPlayerApi"))
+            {
+                return new NativeCallResult(playerAPI.Call<AndroidJavaObject>(methodName, data));
+            }
         }
 
         private ICallResult ConnectToRemote()
@@ -105,11 +93,10 @@ namespace Spotify.Android
                 {
                     using (var spotifyAppRemoteClass = new AndroidJavaClass("com.spotify.android.appremote.api.SpotifyAppRemote"))
                     {
-                        spotifyAppRemoteClass.CallStatic("connect", unityPlayerActivity, connectionParams, new ConnectionListner(
+                        spotifyAppRemoteClass.CallStatic("connect", unityPlayerActivity, connectionParams, new ConnectionListener(
                             (spotifyAppRemote) =>
                             {
                                 _spotifyAppRemote = spotifyAppRemote;
-                                //_spotifyConnectionOverlay.SetActive(false);
                                 Debug.Log("Connection Success!");
 
                                 using (var playerAPI = _spotifyAppRemote.Call<AndroidJavaObject>("getPlayerApi"))
@@ -150,6 +137,9 @@ namespace Spotify.Android
         private void OnPlayerStateChange(AndroidJavaObject playerState)
         {
             Debug.Log("Player State Change");
+
+            // TODO: figure out what happens when player cannot be found?
+            NoPlayer = false;
 
             using (var track = playerState.Get<AndroidJavaObject>("track"))
             using (var artist = track.Get<AndroidJavaObject>("artist"))
@@ -230,4 +220,4 @@ namespace Spotify.Android
     }
 }
 
-
+#endif

@@ -1,10 +1,6 @@
 ﻿using System;
-using System.Diagnostics;
 using System.Collections;
-using System.Collections.Generic;
-using System.Threading.Tasks;
 using UnityEngine;
-using Spotify.Auth;
 
 namespace Spotify
 {
@@ -42,6 +38,7 @@ namespace Spotify
         public Texture2D TrackImage { get; protected set; }
         public virtual Vector3 TrackImageScaleAdjustment => Vector3.one;
         public bool IsPaused { get; protected set; } = true;
+        public bool NoPlayer { get; protected set; } = true;
         public long PlaybackPosition => _timelineStopwatch.ElapsedMilliseconds;
 
         private ExtendedStopwatch _timelineStopwatch = new ExtendedStopwatch();
@@ -76,7 +73,7 @@ namespace Spotify
 
         protected void StateUpdated(long playbackPosition = -1)
         {
-            if (playbackPosition >= 0)
+            if (playbackPosition >= 0 && CurrentTrack != null && playbackPosition < CurrentTrack.Duration)
             {
                 _timelineStopwatch.Restart(TimeSpan.FromMilliseconds(playbackPosition));
                 _trackFinished = false;
@@ -96,6 +93,9 @@ namespace Spotify
         {
             while (true)
             {
+                while (NoPlayer)
+                    yield return null;
+                
                 if (!IsPaused && CurrentTrack != null)
                 {
                     OnTimelineUpdate();
@@ -107,15 +107,22 @@ namespace Spotify
 
         private void OnTimelineUpdate()
         {
-            if (!_trackFinished && _timelineStopwatch.ElapsedMilliseconds >= CurrentTrack.Duration)
+            if (NoPlayer)
             {
-                OnTrackFinish();
-                _trackFinished = true;
+                OnTimelineTick?.Invoke(0, 0);
             }
+            else
+            {
+                if (!_trackFinished && _timelineStopwatch.ElapsedMilliseconds >= CurrentTrack.Duration)
+                {
+                    OnTrackFinish();
+                    _trackFinished = true;
+                }
 
-            OnTimelineTick?.Invoke(_timelineStopwatch.ElapsedMilliseconds >= CurrentTrack.Duration ?
-                CurrentTrack.Duration : _timelineStopwatch.ElapsedMilliseconds,
-                CurrentTrack.Duration);
+                OnTimelineTick?.Invoke(_timelineStopwatch.ElapsedMilliseconds >= CurrentTrack.Duration ?
+                        CurrentTrack.Duration : _timelineStopwatch.ElapsedMilliseconds,
+                    CurrentTrack.Duration);
+            }
         }
 
     }

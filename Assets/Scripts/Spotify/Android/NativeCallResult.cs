@@ -1,4 +1,6 @@
-﻿using System;
+﻿#if UNITY_ANDROID
+
+using System;
 using UnityEngine;
 
 namespace Spotify.Android
@@ -40,3 +42,5 @@ namespace Spotify.Android
 		}
 	}
 }
+
+#endif

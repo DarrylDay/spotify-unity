@@ -38,7 +38,8 @@ namespace Spotify
         {
             DrawHeader("App Configuration");
             DrawConfigInput("Client ID", Config.Instance.CLIENT_ID, (newInput) => Config.Instance.CLIENT_ID = newInput);
-            DrawPlayerPrefInput("Client Secret", Config.CLIENT_SECRET_PP.Key, true);
+            DrawConfigInput("Client Secret", Config.Instance.CLIENT_SECRET, (newInput) => Config.Instance.CLIENT_SECRET = newInput, true);
+            //DrawPlayerPrefInput("Client Secret", Config.CLIENT_SECRET_PP.Key, true);
             DrawAPIScopes();
 
             DrawHeader("Desktop Configuration");
@@ -72,13 +73,13 @@ namespace Spotify
             }
         }
 
-        private void DrawConfigInput(string label, string input, Action<string> onChange)
+        private void DrawConfigInput(string label, string input, Action<string> onChange, bool sensitive = false)
         {
             DrawInputField(label, input, (newInput) =>
             {
                 onChange?.Invoke(newInput);
                 Config.Instance.Save();
-            });
+            }, sensitive);
         }
 
         private void DrawPlayerPrefInput(string label, string playerPrefKey, bool sensitive = false)

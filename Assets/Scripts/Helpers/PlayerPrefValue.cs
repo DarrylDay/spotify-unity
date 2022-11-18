@@ -15,6 +15,11 @@ public abstract class PlayerPrefValue<T>
     public abstract T Read();
 
     public abstract void Write(T value);
+
+    public void Delete()
+    {
+        PlayerPrefs.DeleteKey(Key);
+    }
 }
 
 public class PlayerPrefString : PlayerPrefValue<string>

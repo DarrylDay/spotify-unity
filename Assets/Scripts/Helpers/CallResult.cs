@@ -80,6 +80,8 @@ public class CallResult<T> : ICallResult<T>, IDisposable
             _cancelAction?.Invoke();
             State = ResultState.Canceled;
         }
+        
+        _completionSource?.SetCanceled();
 
         return State == ResultState.Canceled;
     }
@@ -106,14 +108,9 @@ public class CallResult<T> : ICallResult<T>, IDisposable
         return;
     }
 
-    public async Task<T> AwaitResult()
+    public Task<T> AwaitResult()
     {
-        if (State == ResultState.Finished)
-        {
-            return _result;
-        }
-
-        return await _completionSource.Task;
+        return _completionSource.Task;
     }
 
     public IEnumerator Yield()
@@ -133,11 +130,18 @@ public class CallResult<T> : ICallResult<T>, IDisposable
         {
             throw new Exception("Cannot Set Result on Non-Pending State");
         }
-        else
+        
+        try
         {
             _result = result;
             State = ResultState.Finished;
+            _completionSource?.SetResult(result);
             _onResult?.Invoke(result);
+        }
+        catch (Exception e)
+        {
+            Debug.LogException(e);
+            SetError(e);
         }
     }
 
@@ -147,12 +151,11 @@ public class CallResult<T> : ICallResult<T>, IDisposable
         {
             throw new Exception("Cannot Set Error on Non-Pending State");
         }
-        else
-        {
-            _error = e;
-            State = ResultState.Error;
-            _onError?.Invoke(e);
-        }
+
+        _error = e;
+        State = ResultState.Error;
+        _completionSource?.SetException(e);
+        _onError?.Invoke(e);
     }
 
     public ResultState GetState() => State;

@@ -1,15 +1,16 @@
-﻿using System;
-using UnityEngine;
+﻿#if UNITY_ANDROID
 
+using System;
+using UnityEngine;
 
 namespace Spotify.Android
 {
-    public class ConnectionListner : AndroidJavaProxy
+    public class ConnectionListener : AndroidJavaProxy
     {
         private Action<AndroidJavaObject> _onConnected;
         private Action<string> _onFailure;
 
-        public ConnectionListner(Action<AndroidJavaObject> onConnected, Action<string> onFailure) :
+        public ConnectionListener(Action<AndroidJavaObject> onConnected, Action<string> onFailure) :
             base("com.spotify.android.appremote.api.Connector$ConnectionListener")
         {
             _onConnected = onConnected;
@@ -28,18 +29,33 @@ namespace Spotify.Android
         }
     }
 
-    public class TokenCallback : AndroidJavaProxy
+    public class AuthCallback : AndroidJavaProxy
     {
-        private Action<string> _callback;
+        private readonly Action<AndroidJavaObject> _instanceCallback;
+        private readonly Action<string, string> _resultCallback;
+        private readonly Action<string> _errorCallback;
 
-        public TokenCallback(Action<string> callback) : base("ca.darrylday.spotifyandroidtest.Utils$TokenCallback")
+        public AuthCallback(Action<AndroidJavaObject> instanceCallback, Action<string, string> resultCallback, Action<string> errorCallback = null) 
+            : base(Application.identifier + ".Utils$AuthCallback")
         {
-            _callback = callback;
+            _instanceCallback = instanceCallback;
+            _resultCallback = resultCallback;
+            _errorCallback = errorCallback;
         }
 
-        public void onToken(string token)
+        public void onInstance(AndroidJavaObject instance)
         {
-            _callback?.Invoke(token);
+            _instanceCallback?.Invoke(instance);
+        }
+        
+        public void onResult(string type, string token)
+        {
+            _resultCallback?.Invoke(type, token);
+        }
+
+        public void onError(string error)
+        {
+            _errorCallback?.Invoke(error);
         }
     }
 
@@ -90,4 +106,4 @@ namespace Spotify.Android
 
 }
 
-
+#endif
