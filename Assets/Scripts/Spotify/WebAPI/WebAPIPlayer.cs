@@ -41,16 +41,8 @@ namespace Spotify.WebAPI
                         var track = state.item;
                         var album = track.album;
                         var artist = track.artists.First();
-
-                        // TODO add cache manager
-                        MonoBehaviourHelper.RunCoroutine(GetAlbumImage(album.images.First().url, (texture) =>
-                        {
-                            TrackImage.Reinitialize(texture.width, texture.height, texture.format, false);
-                            TrackImage.SetPixels32(texture.GetPixels32());
-                            TrackImage.Apply();
-                            //Texture2D.Destroy(texture);
-                            // TODO figure out why this crashes
-                        }));
+                        
+                        WebAPI.GetAlbumImage(album, TrackImage);
 
                         CurrentTrack = new Track()
                         {
@@ -222,24 +214,6 @@ namespace Spotify.WebAPI
             else
             {
                 onError?.Invoke(new Exception("No Access Token"));
-            }
-        }
-
-        private IEnumerator GetAlbumImage(string url, Action<Texture2D> onFinish)
-        {
-            var downloadHandler = new DownloadHandlerTexture();
-            var request = new UnityWebRequest(url, UnityWebRequest.kHttpVerbGET, downloadHandler, null);
-
-            yield return request.SendWebRequest();
-
-            if (request.result == UnityWebRequest.Result.Success)
-            {
-                onFinish?.Invoke(downloadHandler.texture);
-            }
-            else
-            {
-                Debug.LogError("Could not download image");
-                Debug.LogError(request.error);
             }
         }
     }

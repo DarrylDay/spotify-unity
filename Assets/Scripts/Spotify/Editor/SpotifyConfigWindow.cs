@@ -3,6 +3,7 @@ using UnityEditor;
 using System;
 using System.Linq;
 using System.Collections.Generic;
+using Spotify.WebAPI;
 
 namespace Spotify
 {
@@ -50,9 +51,13 @@ namespace Spotify
 
             DrawHeader("Cached Data");
             DrawInputField("Saved Refresh Token", Auth.OAuth.SavedRefreshToken);
+            DrawButton("Clear Refresh Token Cache", () =>
+            {
+                Auth.OAuth.RefreshTokenPP.Delete();
+            });
             DrawButton("Open Cache Folder", () => {
-                System.IO.Directory.CreateDirectory(Application.persistentDataPath + "/SpotifyCache");
-                EditorUtility.RevealInFinder(Application.persistentDataPath + "/SpotifyCache");
+                System.IO.Directory.CreateDirectory(WebAPI.WebAPI.CacheRootFolder);
+                EditorUtility.RevealInFinder(WebAPI.WebAPI.CacheRootFolder);
             });
         }
 

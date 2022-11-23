@@ -81,8 +81,9 @@ namespace Spotify.Auth
             public string CodeVerifier;
         }
         
-        public static readonly PlayerPrefString RefreshTokenPP = new PlayerPrefString("SPOTIFY_REFRESH_TOKEN");
+        public static readonly PlayerPrefString RefreshTokenPP = new ("SPOTIFY_REFRESH_TOKEN");
         public static string SavedRefreshToken => RefreshTokenPP.Read();
+        public static bool Authorized => !string.IsNullOrWhiteSpace(SavedRefreshToken);
         public static bool TokenRefreshInProgress { get; private set; }
         public static TokenHandler CurrentTokenHandler { get; private set; }
 

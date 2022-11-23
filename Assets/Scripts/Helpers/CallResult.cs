@@ -145,6 +145,9 @@ public class CallResult<T> : ICallResult<T>, IDisposable
         }
     }
 
+    public void SetError(string message)
+        => SetError(new Exception(message));
+    
     public void SetError(Exception e)
     {
         if (State != ResultState.Pending)

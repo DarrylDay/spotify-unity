@@ -1,43 +1,53 @@
-﻿using System;
-using UnityEngine;
-using System.Collections;
-using System.Threading.Tasks;
+﻿using UnityEngine;
 using Spotify.Auth;
-using Spotify.Android;
 using Spotify.WebAPI;
+
+#if UNITY_ANDROID
+using Spotify.Android;
+#endif
 
 namespace Spotify
 {
 	public class SpotifyManager : Singleton<SpotifyManager>
 	{
-		[SerializeField] private PlayerFrontend _frontend;
+        [SerializeField] private AuthFrontend _authFrontend;
+		[SerializeField] private PlayerFrontend _playerFrontend;
 
         private PlayerBackend _backend;
 
         void Start()
         {
-            Debug.Log("Spotify On Start");
+            if (OAuth.Authorized)
+            {
+                OAuth.Login()
+                    .OnResult(InitPlayer)
+                    .OnError(e =>
+                    {
+                        Debug.LogException(e);
+                        _authFrontend.Setup(InitPlayer);
+                    });
+            }
+            else
+            {
+                _authFrontend.Setup(InitPlayer);
+            }
+        }
 
-            OAuth.Login()
-                .OnResult(tokenHandler =>
-                {
+        private void InitPlayer(OAuth.TokenHandler tokenHandler)
+        {
 #if UNITY_EDITOR
-                    _backend = new WebAPIPlayer(tokenHandler);
+            _backend = new WebAPIPlayer(tokenHandler);
 #elif UNITY_ANDROID
-                    _backend = new AndroidPlayer();
+            _backend = new AndroidPlayer();
 #endif
-                    _backend.Init()
-                        .OnFinish(() =>
-                        {
-                            _frontend.Init(_backend);
-                        })
-                        .OnError(e =>
-                        {
-                            Debug.LogException(e);
-                        });
+            _backend.Init()
+                .OnFinish(() =>
+                {
+                    _playerFrontend.Init(_backend);
                 })
                 .OnError(e =>
                 {
+                    // TODO: Add UI error overlay?
                     Debug.LogException(e);
                 });
         }
