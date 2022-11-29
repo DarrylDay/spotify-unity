@@ -53,9 +53,9 @@ namespace Spotify.WebAPI
 
     public class Image
     {
-        public int height;
+        public int? height;
         public string url;
-        public int width;
+        public int? width;
     }
 
     public class ExternalIds
@@ -99,5 +99,22 @@ namespace Spotify.WebAPI
         public string href { get; set; }
         public ExternalUrls external_urls { get; set; }
         public string uri { get; set; }
+    }
+    
+    public class Owner
+    {
+        public ExternalUrls external_urls { get; set; }
+        public Followers followers { get; set; }
+        public string href { get; set; }
+        public string id { get; set; }
+        public string type { get; set; }
+        public string uri { get; set; }
+        public string display_name { get; set; }
+    }
+    
+    public class Followers
+    {
+        public string href { get; set; }
+        public int total { get; set; }
     }
 }

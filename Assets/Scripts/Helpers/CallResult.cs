@@ -19,10 +19,13 @@ public class CallResult<T> : ICallResult<T>, IDisposable
     protected CancellationTokenSource _callCTS;
     protected Action _cancelAction;
 
+    protected Action<T> _preResult;
+    
     public CallResult() { }
 
-    public CallResult(Func<CallResult<T>, IEnumerator> getEnumerator)
+    public CallResult(Func<CallResult<T>, IEnumerator> getEnumerator, Action<T> preResult = null)
     {
+        _preResult = preResult;
         _callCoroutine = MonoBehaviourHelper.RunCoroutine(getEnumerator.Invoke(this));
     }
 
@@ -36,6 +39,7 @@ public class CallResult<T> : ICallResult<T>, IDisposable
     public CallResult(T result)
     {
         _result = result;
+        _completionSource.SetResult(_result);
         State = ResultState.Finished;
     }
 
@@ -135,6 +139,7 @@ public class CallResult<T> : ICallResult<T>, IDisposable
         {
             _result = result;
             State = ResultState.Finished;
+            _preResult?.Invoke(_result);
             _completionSource?.SetResult(result);
             _onResult?.Invoke(result);
         }

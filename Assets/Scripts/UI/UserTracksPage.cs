@@ -11,7 +11,7 @@ public class UserTracksPage : MonoBehaviour
     [SerializeField] private TrackCellView _trackCellViewPrefab;
 
     private string _accessToken;
-    private GetUserSavedTracksResponse _response;
+    private ItemsBaseResponse<UserSavedTrack> _response;
 
     public void Load(string accessToken)
     {
@@ -35,7 +35,7 @@ public class UserTracksPage : MonoBehaviour
             {
                 Debug.Log(request.downloadHandler.text);
 
-                _response = JsonUtility.FromJson<GetUserSavedTracksResponse>(request.downloadHandler.text);
+                _response = JsonUtility.FromJson<ItemsBaseResponse<UserSavedTrack>>(request.downloadHandler.text);
 
                 CreateList();
             }

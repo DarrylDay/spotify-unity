@@ -174,7 +174,8 @@ namespace Spotify.Auth
 
             if (!string.IsNullOrWhiteSpace(tokenRequest.error))
             {
-                RefreshTokenPP.Delete();
+                if (!tokenRequest.error.Contains("Cannot connect to destination host"))
+                    RefreshTokenPP.Delete();
                 throw new Exception(tokenRequest.error);
             }
 

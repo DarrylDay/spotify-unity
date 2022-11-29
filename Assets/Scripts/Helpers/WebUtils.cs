@@ -36,7 +36,6 @@ public static class WebUtils
     
     public static IEnumerator DownloadImageBytes(string url, CallResult<byte[]> result)
     {
-        Debug.Log(url);
         var downloadHandler = new DownloadHandlerBuffer();
         var request = new UnityWebRequest(url, UnityWebRequest.kHttpVerbGET, downloadHandler, null);
 

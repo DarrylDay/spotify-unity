@@ -3,21 +3,44 @@ using System.Collections.Generic;
 
 namespace Spotify.WebAPI
 {
-    public class GetUserSavedTracksResponse
+    public class ItemsBaseResponse<T>
     {
-        public class Item
-        {
-            public DateTime added_at;
-            public Track track;
-        }
-
+        public List<T> items;
         public string href;
-        public List<Item> items;
         public int limit;
         public string next;
         public int offset;
         public object previous;
         public int total;
+    }
+
+    public class UserPlaylist
+    {
+        public class Tracks
+        {
+            public string href { get; set; }
+            public int total { get; set; }
+        }
+        
+        public bool collaborative { get; set; }
+        public string description { get; set; }
+        public ExternalUrls external_urls { get; set; }
+        public string href { get; set; }
+        public string id { get; set; }
+        public List<Image> images { get; set; }
+        public string name { get; set; }
+        public Owner owner { get; set; }
+        public bool @public { get; set; }
+        public string snapshot_id { get; set; }
+        public Tracks tracks { get; set; }
+        public string type { get; set; }
+        public string uri { get; set; }
+    }
+
+    public class UserSavedTrack
+    {
+        public DateTime added_at;
+        public Track track;
     }
 
     public class GetPlaybackStateResponse

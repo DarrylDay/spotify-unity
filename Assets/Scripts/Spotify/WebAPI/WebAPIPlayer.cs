@@ -11,23 +11,19 @@ namespace Spotify.WebAPI
 {
 	public sealed class WebAPIPlayer : PlayerBackend
 	{
-        private OAuth.TokenHandler _tokenHandler;
-
-        public WebAPIPlayer(OAuth.TokenHandler tokenHandler) : base()
+        public WebAPIPlayer() : base()
         {
-            _tokenHandler = tokenHandler;
         }
-
+        
         public override ICallResult Init()
         {
             var initCall = new CallResult();
 
-            MonoBehaviourHelper.RunCoroutine(SendRequest<GetPlaybackStateResponse>(
+            WebAPI.SendAuthJsonRequest<GetPlaybackStateResponse>(
                 UnityWebRequest.kHttpVerbGET,
-                "/me/player",
-                (state) =>
+                "/me/player")
+                .OnResult(state =>
                 {
-                    
                     if (state == null)
                     {
                         NoPlayer = true;
@@ -65,28 +61,20 @@ namespace Spotify.WebAPI
                     }
                     
                     initCall.SetResult(CallResult.Empty);
-                },
-                (error) =>
-                {
-                    initCall.SetError(error);
-                }
-                ));
+                })
+                .OnError(initCall.SetError);
 
             return initCall;
         }
 
-        public override ICallResult Pause()
-        {
-            return new CallResult(cr => SendRequest(
-                UnityWebRequest.kHttpVerbPUT,
-                "/me/player/pause",
-                cr,
-                () => {
-                    IsPaused = true;
-                    StateUpdated();
-                    Init();
-                }));
-        }
+        public override ICallResult Pause() => WebAPI.SendAuthJsonRequest(
+            UnityWebRequest.kHttpVerbPUT,
+            "/me/player/pause",
+            () => {
+                IsPaused = true;
+                StateUpdated();
+                Init();
+            });
 
         public override ICallResult Play(string uri)
         {
@@ -98,18 +86,14 @@ namespace Spotify.WebAPI
             throw new NotImplementedException();
         }
 
-        public override ICallResult Resume()
-        {
-            return new CallResult(cr => SendRequest(
-                UnityWebRequest.kHttpVerbPUT,
-                "/me/player/play",
-                cr,
-                () => {
-                    IsPaused = false;
-                    StateUpdated();
-                    Init();
-                }));
-        }
+        public override ICallResult Resume() => WebAPI.SendAuthJsonRequest(
+            UnityWebRequest.kHttpVerbPUT,
+            "/me/player/play",
+            () => {
+                IsPaused = false;
+                StateUpdated();
+                Init();
+            });
 
         public override ICallResult SeekTo(long positionMs)
         {
@@ -131,90 +115,24 @@ namespace Spotify.WebAPI
             throw new NotImplementedException();
         }
 
-        public override ICallResult SkipNext()
-        {
-            return new CallResult(cr => SendRequest(
-                UnityWebRequest.kHttpVerbPOST,
-                "/me/player/next",
-                cr,
-                () => {
-                    Init();
-                }));
-        }
+        public override ICallResult SkipNext() => WebAPI.SendAuthJsonRequest(
+            UnityWebRequest.kHttpVerbPOST,
+            "/me/player/next",
+            Refresh);
 
-        public override ICallResult SkipPrevious()
-        {
-            return new CallResult(cr => SendRequest(
-                UnityWebRequest.kHttpVerbPOST,
-                "/me/player/previous",
-                cr,
-                () => {
-                    Init();
-                }));
-        }
+        public override ICallResult SkipPrevious() => WebAPI.SendAuthJsonRequest(
+            UnityWebRequest.kHttpVerbPOST,
+            "/me/player/previous",
+            Refresh);
 
         protected override void OnTrackFinish()
         {
             Init();
         }
 
-        private IEnumerator SendRequest<T>(string method, string path, CallResult<T> callResult, Action onFinish = null) where T : class
+        private void Refresh()
         {
-            yield return MonoBehaviourHelper.RunCoroutine(SendRequest<T>(method, path,
-                (result) => { callResult.SetResult(result); onFinish?.Invoke(); },
-                (error) => callResult.SetError(error)));
-        }
-
-        private IEnumerator SendRequest<T>(string method, string path, Action<T> onResult = null, Action<Exception> onError = null) where T : class
-        {
-            if (_tokenHandler != null)
-            {
-                Debug.Log(path);
-                
-                var tokenResult = _tokenHandler.GetAccessTokenSafely();
-                yield return MonoBehaviourHelper.RunCoroutine(tokenResult.Yield());
-
-                var request = new UnityWebRequest(Config.Instance.API_ENDPOINT + path, method, new DownloadHandlerBuffer(), null);
-                request.SetRequestHeader("Authorization", "Bearer " + tokenResult.GetResult());
-                request.SetRequestHeader("Content-Type", "application/json");
-
-                yield return request.SendWebRequest();
-
-                if (request.result == UnityWebRequest.Result.Success)
-                {
-                    try
-                    {
-                        //Debug.Log(request.downloadHandler.text);
-
-                        if (typeof(Empty) is T)
-                        {
-                            onResult?.Invoke(CallResult.Empty as T);
-                        }
-                        else
-                        {
-                            var response = JsonConvert.DeserializeObject<T>(request.downloadHandler.text);
-                            onResult?.Invoke(response);
-                        }
-                    }
-                    catch (Exception e)
-                    {
-                        Debug.LogError(e.Message);
-
-                        onError?.Invoke(e);
-                    }
-                }
-                else
-                {
-                    Debug.LogError(request.url);
-                    Debug.LogError(request.error);
-
-                    onError?.Invoke(new Exception(request.error));
-                }
-            }
-            else
-            {
-                onError?.Invoke(new Exception("No Access Token"));
-            }
+            Init();
         }
     }
 }

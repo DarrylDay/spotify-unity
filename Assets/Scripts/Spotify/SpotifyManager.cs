@@ -36,7 +36,7 @@ namespace Spotify
         private void InitPlayer(OAuth.TokenHandler tokenHandler)
         {
 #if UNITY_EDITOR
-            _backend = new WebAPIPlayer(tokenHandler);
+            _backend = new WebAPIPlayer();
 #elif UNITY_ANDROID
             _backend = new AndroidPlayer();
 #endif
@@ -44,6 +44,17 @@ namespace Spotify
                 .OnFinish(() =>
                 {
                     _playerFrontend.Init(_backend);
+                    
+                    // Test
+                    // WebAPI.WebAPI.GetUserPlaylists()
+                    //     .OnResult(playlists =>
+                    //     {
+                    //         playlists.ForEach(x => Debug.Log(x.name));
+                    //     })
+                    //     .OnError(error =>
+                    //     {
+                    //         Debug.LogException(error);
+                    //     });
                 })
                 .OnError(e =>
                 {
